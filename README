@@ -1,0 +1,59 @@
+NAME
+    App::DNS::Zonewalk - helper library for recursive DNS zone walks.
+
+ABSTRACT
+    Helper library for zonewalk. Injects a raxfr() method to
+    Net::DNS::Resolver.
+
+SYNOPSIS
+        use App::DNS::Zonewalk;
+
+        my $resolver = Net::DNS::Resolver->new();
+        my @net_dns_rrs = $resolver->raxfr($start_zone)
+        ...
+
+DESCRIPTION
+    See the zonewalk documentation for more details, a cli program included
+    in this distribution for recusive DNS zonewalks.
+
+VERSION
+    Version 0.01
+
+AUTHOR
+    Karl Gaissmaier, "<gaissmai(at)cpan.org>"
+
+BUGS
+    Please report any bugs or feature requests to "bug-app-dns-zonewalk at
+    rt.cpan.org", or through the web interface at
+    <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=App-DNS-Zonewalk>. I
+    will be notified, and then you'll automatically be notified of progress
+    on your bug as I make changes.
+
+SUPPORT
+    You can find documentation for this module with the perldoc command.
+
+        perldoc App::DNS::Zonewalk
+
+    You can also look for information at:
+
+    * RT: CPAN's request tracker (report bugs here)
+        <http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-DNS-Zonewalk>
+
+    * AnnoCPAN: Annotated CPAN documentation
+        <http://annocpan.org/dist/App-DNS-Zonewalk>
+
+    * CPAN Ratings
+        <http://cpanratings.perl.org/d/App-DNS-Zonewalk>
+
+    * Search CPAN
+        <http://search.cpan.org/dist/App-DNS-Zonewalk/>
+
+LICENSE AND COPYRIGHT
+    Copyright 2012 Karl Gaissmaier.
+
+    This program is free software; you can redistribute it and/or modify it
+    under the terms of either: the GNU General Public License as published
+    by the Free Software Foundation; or the Artistic License.
+
+    See http://dev.perl.org/licenses/ for more information.
+
