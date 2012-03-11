@@ -4,9 +4,15 @@ use feature qw(switch);
 
 use Net::DNS qw();
 
-############################################################################
-# Perl has open classes, inject the new method raxfr() to Net::DNS::Resolver
-############################################################################
+# make the CPAN indexer happy
+{
+    package App::DNS::Zonewalk;
+    our $VERSION = 0.03;
+}
+
+#####################################################
+# Inject the new method raxfr() to Net::DNS::Resolver
+#####################################################
 
 ##################################
 # recursive walk of the start zone
@@ -129,7 +135,7 @@ sub Net::DNS::Resolver::_raxfr_check_is_auth {
 
 =head1 NAME
 
-zonewalk - helper library for recursive DNS zone walks.
+App::DNS::Zonewalk - helper library for recursive DNS zone walks.
 
 =head1 ABSTRACT
 

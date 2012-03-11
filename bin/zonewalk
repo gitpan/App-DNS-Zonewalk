@@ -71,7 +71,7 @@ use Pod::Usage qw(pod2usage);
 use Net::DNS qw();
 use App::DNS::Zonewalk qw();
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 our $debug;
 our $v4;

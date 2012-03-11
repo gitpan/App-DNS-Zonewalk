@@ -12,9 +12,13 @@ meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
 name: App-DNS-Zonewalk
+provides:
+  App::DNS::Zonewalk:
+    file: lib/App/DNS/Zonewalk.pm
+    version: 0.03
 requires:
   Net::DNS: 0
   perl: v5.10.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.02
+version: 0.03
