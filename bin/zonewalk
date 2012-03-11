@@ -60,18 +60,15 @@ If IPv6 addresses are given, abbreviated forms are not allowed, .e.g.
 
 =cut
 
-package main;
-
 use strict;
 use warnings;
 use feature qw(switch);
 
+use App::DNS::Zonewalk qw();
 use Getopt::Long qw(GetOptions);
 use Pod::Usage qw(pod2usage);
-use Net::DNS qw();
-use App::DNS::Zonewalk qw();
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 our $debug;
 our $v4;
@@ -80,16 +77,10 @@ our $long_listing;
 our $server;
 our $start_zone;
 
-# make this script testable
-if (caller) {
-  return 1;
-}
-else {
-  handle_options();
-  my $rec_zone_listing = run_raxfr($start_zone);
-  print_rec_zone($rec_zone_listing);
-  exit;
-}
+handle_options();
+my $rec_zone_listing = run_raxfr($start_zone);
+print_rec_zone($rec_zone_listing);
+exit;
 
 ###############################################################
 #                         end of main
@@ -97,106 +88,115 @@ else {
 
 sub handle_options {
 
-  my $memory = '';
-  open( MEMORY, '>>', \$memory )
-    or die "Cannot open memory file: $!,";
+    my $memory = '';
+    open( MEMORY, '>>', \$memory )
+      or die "Cannot open memory file: $!,";
 
-  my $options_result;
-  {
+    my $options_result;
+    {
 
-    # bloody GetOptions, hardcoded errors to STDERR
-    local *STDERR = *MEMORY;
+        # bloody GetOptions, hardcoded errors to STDERR
+        local *STDERR = *MEMORY;
 
-    $options_result = GetOptions(
-      'debug|d'    => \$debug,
-      '4'          => \$v4,
-      '6'          => \$v6,
-      'long|l'     => \$long_listing,
-      'server|s=s' => \$server,
-    );
-  }
+        $options_result = GetOptions(
+            'debug|d'    => \$debug,
+            '4'          => \$v4,
+            '6'          => \$v6,
+            'long|l'     => \$long_listing,
+            'server|s=s' => \$server,
+        );
+    }
 
-  unless ($options_result) {
-    pod2usage( -exitval => 'NOEXIT', -verbose => 1, -output => \*MEMORY );
-    die "$memory\n";
-  }
+    unless ($options_result) {
+        pod2usage(
+            -exitval => 'NOEXIT',
+            -verbose => 1,
+            -output  => \*MEMORY
+        );
+        die "$memory\n";
+    }
 
-  # get the zone from cmdline
-  $start_zone = lc shift @ARGV;
-  unless ($start_zone) {
-    pod2usage( -exitval => 'NOEXIT', -verbose => 1, -output => \*MEMORY );
-    die "missing zone\n$memory\n";
-  }
+    # get the zone from cmdline
+    $start_zone = lc shift @ARGV;
+    unless ($start_zone) {
+        pod2usage(
+            -exitval => 'NOEXIT',
+            -verbose => 1,
+            -output  => \*MEMORY
+        );
+        die "missing zone\n$memory\n";
+    }
 
-  if ( Net::DNS::Resolver::Base::_ip_is_ipv4($start_zone) ) {
-    my @octets = split( /\./, $start_zone );
-    $start_zone = join( '.', reverse @octets );
-    $start_zone .= '.in-addr.arpa';
-  }
-  elsif ( Net::DNS::Resolver::Base::_ip_is_ipv6($start_zone) ) {
+    if ( Net::DNS::Resolver::Base::_ip_is_ipv4($start_zone) ) {
+        my @octets = split( /\./, $start_zone );
+        $start_zone = join( '.', reverse @octets );
+        $start_zone .= '.in-addr.arpa';
+    }
+    elsif ( Net::DNS::Resolver::Base::_ip_is_ipv6($start_zone) ) {
 
-    # this simple algo works only for fully expanded IPv6 addresses
-    $start_zone =~ s/://g;
-    my @octets = split( //, $start_zone );
-    $start_zone = join( '.', reverse @octets );
-    $start_zone .= '.ip6.arpa';
-  }
+        # this simple algo works only for fully expanded IPv6 addresses
+        $start_zone =~ s/://g;
+        my @octets = split( //, $start_zone );
+        $start_zone = join( '.', reverse @octets );
+        $start_zone .= '.ip6.arpa';
+    }
 
-  return 1;
+    return 1;
 
 }
 
 # return an array-ref of Net::DNS::RR objects for zone walk
 sub run_raxfr {
-  my $zone = shift;
+    my $zone = shift;
 
-  my $resolver = Net::DNS::Resolver->new(
-    retrans     => 1,
-    retry       => 1,
-    tcp_timeout => 3,
-    debug       => $debug,
-    $server ? ( nameservers => [$server] ) : (),
-  );
+    my $resolver = App::DNS::Zonewalk->new(
+        retrans     => 1,
+        retry       => 1,
+        tcp_timeout => 3,
+        debug       => $debug,
+        $server ? ( nameservers => [$server] ) : (),
+    );
 
-  my $rec_zone_listing = $resolver->raxfr($zone);
-  unless (@$rec_zone_listing) {
-    warn "Cannot fetch '$zone': ", $resolver->errorstring, "\n";
-    exit 1;
-  }
+    my $rec_zone_listing = $resolver->raxfr($zone);
+    unless (@$rec_zone_listing) {
+        warn "Cannot fetch '$zone': ", $resolver->errorstring, "\n";
+        exit 1;
+    }
 
-  return $rec_zone_listing;
+    return $rec_zone_listing;
 }
 
 sub print_rec_zone {
-  my ($zone) = @_;
+    my ($zone) = @_;
 
-  foreach my $rr (@$zone) {
+    foreach my $rr (@$zone) {
 
-    if ($long_listing) {
-      $rr->print;
-      next;
+        if ($long_listing) {
+            $rr->print;
+            next;
+        }
+
+        # was this a reverse_zone walk, just print the PTR records
+        if ( $start_zone =~ m/ .* \.in-addr\.arpa $ | .* \.ip6\.arpa $/ix )
+        {
+            printf "%-30s %s\n", $rr->name, $rr->ptrdname
+              if $rr->type eq 'PTR';
+            next;
+        }
+
+        given ( $rr->type ) {
+
+            when ('A') {
+                printf "%-15s %s\n", $rr->address, $rr->name unless $v6;
+            }
+
+            when ('AAAA') {
+                printf "%-40s %s\n", $rr->address, $rr->name unless $v4;
+
+            }
+        }
+
     }
-
-    # was this a reverse_zone walk, just print the PTR records
-    if ( $start_zone =~ m/ .* \.in-addr\.arpa $ | .* \.ip6\.arpa $/ix ) {
-      printf "%-30s %s\n", $rr->name, $rr->ptrdname
-        if $rr->type eq 'PTR';
-      next;
-    }
-
-    given ( $rr->type ) {
-
-      when ('A') {
-        printf "%-15s %s\n", $rr->address, $rr->name unless $v6;
-      }
-
-      when ('AAAA') {
-        printf "%-40s %s\n", $rr->address, $rr->name unless $v4;
-
-      }
-    }
-
-  }
 }
 
 =head1 AUTHOR

@@ -13,6 +13,7 @@ my $builder = Module::Build->new(
   script_files      => [qw( bin/zonewalk)],
   requires          => {
     'perl'     => '5.10.0',
+    'parent'   => 0,
     'Net::DNS' => 0,
   },
   add_to_cleanup     => ['App-DNS-Zonewalk-*', 'MANIFEST.bak'],

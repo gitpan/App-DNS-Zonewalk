@@ -1,24 +1,44 @@
+package App::DNS::Zonewalk;
+
 use strict;
 use warnings;
 use feature qw(switch);
 
-use Net::DNS qw();
+use parent 'Net::DNS::Resolver';
 
-# make the CPAN indexer happy
-{
-    package App::DNS::Zonewalk;
-    our $VERSION = 0.03;
-}
+our $VERSION = 0.04;
 
-#####################################################
-# Inject the new method raxfr() to Net::DNS::Resolver
-#####################################################
+=head1 NAME
 
-##################################
-# recursive walk of the start zone
-##################################
+App::DNS::Zonewalk - helper library for recursive DNS zone walks.
 
-sub Net::DNS::Resolver::raxfr {
+=head1 ABSTRACT
+
+Helper library for B<zonewalk>. Adds a B<raxfr()> method to Net::DNS::Resolver.
+
+=head1 SYNOPSIS
+
+    use App::DNS::Zonewalk;
+
+    my $resolver = App::DNS::Zonewalk->new();
+    my @net_dns_rrs = $resolver->raxfr($start_zone)
+    ...
+
+=head1 DESCRIPTION
+
+See the B<zonewalk> documentation for more details, a cli program included in this distribution for recusive DNS zonewalks.
+
+=head1 METHODS
+
+=head2 raxfr($start_zone)
+
+  my @resource_records = $resolver->raxfr($start_zone);
+
+Walks the $start_zone recursively and returns all DNS resource records. The DNS server from $resolver must be authoritative for the zone und sub-zones and the client must be allowed to fetch the zones via AXFR.
+
+=cut
+
+sub raxfr {
     my ( $self, $start_zone ) = @_;
 
     unless ($start_zone) {
@@ -46,7 +66,7 @@ sub Net::DNS::Resolver::raxfr {
         $zones_done->{$zone}++;
 
         # skip zone if resolvers nameserver isn't autoritative
-        next ZONE unless $self->_raxfr_check_is_auth($zone);
+        next ZONE unless $self->_check_is_auth($zone);
 
         my @zone_records = $self->axfr($zone);
 
@@ -84,7 +104,7 @@ sub Net::DNS::Resolver::raxfr {
 # check if nameserver is authoritative for zone
 ###############################################
 
-sub Net::DNS::Resolver::_raxfr_check_is_auth {
+sub _check_is_auth {
     my ( $self, $zone ) = @_;
 
     # get the nameservers for this zone
@@ -132,26 +152,6 @@ sub Net::DNS::Resolver::_raxfr_check_is_auth {
     return 1;
 
 }
-
-=head1 NAME
-
-App::DNS::Zonewalk - helper library for recursive DNS zone walks.
-
-=head1 ABSTRACT
-
-Helper library for B<zonewalk>. Injects a B<raxfr()> method to Net::DNS::Resolver.
-
-=head1 SYNOPSIS
-
-    use App::DNS::Zonewalk;
-
-    my $resolver = Net::DNS::Resolver->new();
-    my @net_dns_rrs = $resolver->raxfr($start_zone)
-    ...
-
-=head1 DESCRIPTION
-
-See the B<zonewalk> documentation for more details, a cli program included in this distribution for recusive DNS zonewalks.
 
 =head1 AUTHOR
 
