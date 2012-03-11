@@ -1,5 +1,11 @@
 Revision history for App-DNS-Zonewalk
 
+0.05    Sun, 11 Mar 2012 19:01:27 +0100
+        small tweaks in option handling
+
+0.04    Sun, 11 Mar 2012 18:45:30 +0100
+        arrgh, don't be smart, now just subclassing Net::DNS::Resolver
+
 0.03    Sun, 11 Mar 2012 15:58:19 +0100
         still fiddling with the CPAN indexer
 

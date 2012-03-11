@@ -68,7 +68,7 @@ use App::DNS::Zonewalk qw();
 use Getopt::Long qw(GetOptions);
 use Pod::Usage qw(pod2usage);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 our $debug;
 our $v4;
@@ -86,52 +86,42 @@ exit;
 #                         end of main
 ###############################################################
 
+#
+# check cmdline flags and args
+#
 sub handle_options {
 
-    my $memory = '';
-    open( MEMORY, '>>', \$memory )
-      or die "Cannot open memory file: $!,";
+    GetOptions(
+        'debug|d'    => \$debug,
+        '4'          => \$v4,
+        '6'          => \$v6,
+        'long|l'     => \$long_listing,
+        'server|s=s' => \$server,
+      )
+      or pod2usage(
+        -exitval => 2,
+        -verbose => 1,
+      );
 
-    my $options_result;
-    {
+    # get the start zone from cmdline
+    $start_zone = lc shift @ARGV
+      or pod2usage(
+        -exitval => 2,
+        -verbose => 1,
+        -message => 'missing zone',
+      );
 
-        # bloody GetOptions, hardcoded errors to STDERR
-        local *STDERR = *MEMORY;
-
-        $options_result = GetOptions(
-            'debug|d'    => \$debug,
-            '4'          => \$v4,
-            '6'          => \$v6,
-            'long|l'     => \$long_listing,
-            'server|s=s' => \$server,
-        );
-    }
-
-    unless ($options_result) {
-        pod2usage(
-            -exitval => 'NOEXIT',
-            -verbose => 1,
-            -output  => \*MEMORY
-        );
-        die "$memory\n";
-    }
-
-    # get the zone from cmdline
-    $start_zone = lc shift @ARGV;
-    unless ($start_zone) {
-        pod2usage(
-            -exitval => 'NOEXIT',
-            -verbose => 1,
-            -output  => \*MEMORY
-        );
-        die "missing zone\n$memory\n";
-    }
-
+    # #####################
+    # convenience function
+    # #####################
+    #
+    # check for IPv4 address as start zone, build reverse zone
     if ( Net::DNS::Resolver::Base::_ip_is_ipv4($start_zone) ) {
         my @octets = split( /\./, $start_zone );
         $start_zone = join( '.', reverse @octets );
         $start_zone .= '.in-addr.arpa';
     }
+    # check for IPv6 address as start zone, build reverse zone
     elsif ( Net::DNS::Resolver::Base::_ip_is_ipv6($start_zone) ) {
 
         # this simple algo works only for fully expanded IPv6 addresses
@@ -142,10 +132,12 @@ sub handle_options {
     }
 
     return 1;
-
 }
 
-# return an array-ref of Net::DNS::RR objects for zone walk
+#
+# create a Net::DNS::Resolver object and do a raxfr() fro start zone
+# return an array-ref of Net::DNS::RR objects from zone walk
+#
 sub run_raxfr {
     my $zone = shift;
 
@@ -166,6 +158,10 @@ sub run_raxfr {
     return $rec_zone_listing;
 }
 
+#
+# print A, AAAA or PTR records as default
+# only when requested (-l) do a full RR listing
+#
 sub print_rec_zone {
     my ($zone) = @_;
 
