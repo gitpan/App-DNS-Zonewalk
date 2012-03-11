@@ -1,5 +1,8 @@
 Revision history for App-DNS-Zonewalk
 
+0.02    Sun, 11 Mar 2012 15:10:01 +0100
+        hide package injection from CPAN indexer
+
 0.01    Fri, 09 Mar 2012 16:22:47 +0100
         First released version
 

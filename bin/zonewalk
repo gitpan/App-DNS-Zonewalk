@@ -6,7 +6,7 @@ B<zonewalk> - recursive DNS zone walk
 
 =head1 SYNOPSIS
 
-B<zonewalk> [-d] [-l] [-4] [-6] [-s server] B<zone> 
+B<zonewalk> [-d] [-4] [-6] [-l] [-s server] B<zone> 
 
 =head1 DESCRIPTION
 
@@ -71,7 +71,7 @@ use Pod::Usage qw(pod2usage);
 use Net::DNS qw();
 use App::DNS::Zonewalk qw();
 
-our $VERSION = '0.1';
+our $VERSION = '0.02';
 
 our $debug;
 our $v4;
@@ -179,7 +179,7 @@ sub print_rec_zone {
 
     # was this a reverse_zone walk, just print the PTR records
     if ( $start_zone =~ m/ .* \.in-addr\.arpa $ | .* \.ip6\.arpa $/ix ) {
-      printf "%-30s\t%s\n", $rr->name, $rr->ptrdname
+      printf "%-30s %s\n", $rr->name, $rr->ptrdname
         if $rr->type eq 'PTR';
       next;
     }

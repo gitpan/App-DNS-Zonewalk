@@ -1,8 +1,135 @@
-package App::DNS::Zonewalk;
+use strict;
+use warnings;
+use feature qw(switch);
+
+use Net::DNS qw();
+
+############################################################################
+# Perl has open classes, inject the new method raxfr() to Net::DNS::Resolver
+############################################################################
+
+##################################
+# recursive walk of the start zone
+##################################
+
+sub Net::DNS::Resolver::raxfr {
+    my ( $self, $start_zone ) = @_;
+
+    unless ($start_zone) {
+        print ";; ERROR: raxfr: no zone specified\n" if $self->{'debug'};
+        $self->errorstring('no zone');
+        return;
+    }
+
+    # housekeeping for recursion
+    my $dyn_zone_list = {};
+    my $zones_done    = {};
+    my @zone;
+
+    $dyn_zone_list->{$start_zone}++;
+
+  ZONE:
+    while ( my ($zone) = sort keys %$dyn_zone_list ) {
+
+        print ";; processing '$zone' ...\n" if $self->{'debug'};
+
+        delete $dyn_zone_list->{$zone};
+        next ZONE if exists $zones_done->{$zone};
+
+        # mark current zone as done
+        $zones_done->{$zone}++;
+
+        # skip zone if resolvers nameserver isn't autoritative
+        next ZONE unless $self->_raxfr_check_is_auth($zone);
+
+        my @zone_records = $self->axfr($zone);
+
+        unless (@zone_records) {
+            print ";; skipping $zone: ", $self->errorstring, "\n"
+              if $self->{'debug'};
+            next ZONE;
+        }
+
+        foreach my $rr (@zone_records) {
+            push @zone, $rr;
+
+            if ( $rr->type eq 'NS' ) {
+
+                my $new_zone = lc $rr->name;
+
+                # push to dyn_zone_list when index('foo.bar.baz', 'bar.baz')
+                # not already handled and not already stored for handling
+                if (   index( $new_zone, $zone )
+                    && not exists $zones_done->{$new_zone}
+                    && not exists $dyn_zone_list->{$new_zone} )
+                {
+                    $dyn_zone_list->{$new_zone}++;
+                }
+
+            }
+        }
+
+    }
+
+    return wantarray ? @zone : \@zone;
+}
+
+###############################################
+# check if nameserver is authoritative for zone
+###############################################
+
+sub Net::DNS::Resolver::_raxfr_check_is_auth {
+    my ( $self, $zone ) = @_;
+
+    # get the nameservers for this zone
+    my $ans = $self->send( $zone, 'NS' );
+
+    # uups, something bad happened
+    unless ( defined $ans ) {
+        print ';; ERROR: ', $self->errorstring, "\n"
+          if $self->{'debug'};
+        return;
+    }
+
+    # store the nameserver FQDN names
+    my @ns_names;
+    foreach my $rr ( $ans->answer ) {
+        push @ns_names, $rr->nsdname;
+    }
+
+    # but we need the addresses for comparison, sigh
+    my @ns_addresses;
+    foreach my $ns_name (@ns_names) {
+        my $any_packet = $self->query( $ns_name, 'ANY' );
+
+        next unless defined $any_packet;
+
+        foreach my $rr ( $any_packet->answer ) {
+            next unless defined $rr;
+            next unless ( $rr->type eq 'A' || $rr->type eq 'AAAA' );
+            push @ns_addresses, $rr->address;
+        }
+    }
+
+    # now compare the resolvers nameserver with the authoritattive
+    # nameservers for this zone
+    my ($resolvers_ns) = $self->nameservers;
+
+    unless ( $resolvers_ns ~~ @ns_addresses ) {
+        $self->errorstring("NS $resolvers_ns is nonauth for $zone");
+        print ';; ERROR: ', $self->errorstring, "\n"
+          if $self->{'debug'};
+        return;
+    }
+
+    # our resolvers first nameserver is authoritative
+    return 1;
+
+}
 
 =head1 NAME
 
-App::DNS::Zonewalk - helper library for recursive DNS zone walks.
+zonewalk - helper library for recursive DNS zone walks.
 
 =head1 ABSTRACT
 
@@ -19,140 +146,6 @@ Helper library for B<zonewalk>. Injects a B<raxfr()> method to Net::DNS::Resolve
 =head1 DESCRIPTION
 
 See the B<zonewalk> documentation for more details, a cli program included in this distribution for recusive DNS zonewalks.
-
-=head1 VERSION
-
-Version 0.01
-
-=cut
-
-our $VERSION = '0.01';
-
-#####################################################################
-# Perl has open classes, inject the new method raxfr() to this class.
-#####################################################################
-
-package Net::DNS::Resolver;
-{
-  use strict;
-  use warnings;
-
-  ###########
-  # recursive walk of the start zone
-  #
-  sub raxfr {
-    my ( $self, $start_zone ) = @_;
-
-    unless ($start_zone) {
-      print ";; ERROR: raxfr: no zone specified\n" if $self->{'debug'};
-      $self->errorstring('no zone');
-      return;
-    }
-
-    # housekeeping for recursion
-    my $dyn_zone_list = {};
-    my $zones_done    = {};
-    my @zone;
-
-    $dyn_zone_list->{$start_zone}++;
-
-  ZONE:
-    while ( my ($zone) = sort keys %$dyn_zone_list ) {
-
-      print ";; processing '$zone' ...\n" if $self->{'debug'};
-
-      delete $dyn_zone_list->{$zone};
-      next ZONE if exists $zones_done->{$zone};
-
-      # mark current zone as done
-      $zones_done->{$zone}++;
-
-      # skip zone if resolvers nameserver isn't autoritative
-      next ZONE unless $self->_check_is_auth($zone);
-
-      my @zone_records = $self->axfr($zone);
-
-      unless (@zone_records) {
-        print ";; skipping $zone: ", $self->errorstring, "\n"
-          if $self->{'debug'};
-        next ZONE;
-      }
-
-      foreach my $rr (@zone_records) {
-        push @zone, $rr;
-
-        if ( $rr->type eq 'NS' ) {
-
-          my $new_zone = lc $rr->name;
-
-          # push to dyn_zone_list when index('foo.bar.baz', 'bar.baz')
-          # not already handled and not already stored for handling
-          if ( index( $new_zone, $zone )
-            && not exists $zones_done->{$new_zone}
-            && not exists $dyn_zone_list->{$new_zone} )
-          {
-            $dyn_zone_list->{$new_zone}++;
-          }
-
-        }
-      }
-
-    }
-
-    return wantarray ? @zone : \@zone;
-
-  }
-
-  sub _check_is_auth {
-    my ( $self, $zone ) = @_;
-
-    # get the nameservers for this zone
-    my $ans = $self->send( $zone, 'NS' );
-
-    # uups, something bad happened
-    unless ( defined $ans ) {
-      print ';; ERROR: ', $self->errorstring, "\n"
-        if $self->{'debug'};
-      return;
-    }
-
-    # store the nameserver FQDN names
-    my @ns_names;
-    foreach my $rr ( $ans->answer ) {
-      push @ns_names, $rr->nsdname;
-    }
-
-    # but we need the addresses for comparison, sigh
-    my @ns_addresses;
-    foreach my $ns_name (@ns_names) {
-      my $any_packet = $self->query( $ns_name, 'ANY' );
-
-      next unless defined $any_packet;
-
-      foreach my $rr ( $any_packet->answer ) {
-        next unless defined $rr;
-        next unless ( $rr->type eq 'A' || $rr->type eq 'AAAA' );
-        push @ns_addresses, $rr->address;
-      }
-    }
-
-    # now compare the resolvers nameserver with the authoritattive
-    # nameservers for this zone
-    my ($resolvers_ns) = $self->nameservers;
-
-    unless ( $resolvers_ns ~~ @ns_addresses ) {
-      $self->errorstring("NS $resolvers_ns is nonauth for $zone");
-      print ';; ERROR: ', $self->errorstring, "\n"
-        if $self->{'debug'};
-      return;
-    }
-
-    # our resolvers first nameserver is authoritative
-    return 1;
-
-  }
-
-}
 
 =head1 AUTHOR
 
@@ -205,6 +198,6 @@ See http://dev.perl.org/licenses/ for more information.
 
 =cut
 
-1; # End of App::DNS::Zonewalk
+1;    # End of App::DNS::Zonewalk
 
-# vim: sw=2 ft=perl
+# vim: sw=4 ft=perl
